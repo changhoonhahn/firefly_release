@@ -716,174 +716,170 @@ def unred(wave, ebv, R_V=3.1, LMC2=False, AVGLMC=False):
 	return 10.**(0.4*curve)
 
 
-def hpf(flux,windowsize=0,w_start=0):
-	"""
-	What does this one do ? High pass filtering ?
-	"""
-	D = np.size(flux)
-	w = w_start
-	f = flux
+def hpf(flux, windowsize=0, w_start=0):
+    ''' What does this one do ? High pass filtering ?
+    '''
+    D = np.size(flux)
+    w = w_start
+    f = flux
 
-	# Rita's typical inputs for SDSS:
-	# w = 10 # 10
-	# windowsize = 20 # 20
+    # Rita's typical inputs for SDSS:
+    # w = 10 # 10
+    # windowsize = 20 # 20
 
-	# My MaNGA inputs:
-	# if w == 0 and windowsize == 0:
-	#     w = 40
-	#     windowsize = 0
-	if w == 0 and windowsize == 0:
-		w = int(D/100.0)
-		windowsize = 0.0
+    # My MaNGA inputs:
+    # if w == 0 and windowsize == 0:
+    #     w = 40
+    #     windowsize = 0
+    if w == 0 and windowsize == 0:
+        w = int(D/100.0)
+        windowsize = 0.0
 
-	h           = np.fft.fft(f)
-	h_filtered  = np.zeros(D,dtype=complex)
-	window      = np.zeros(D)
-	unwindow    = np.zeros(D)
-	dw          = int(windowsize)
-	dw_float    = float(windowsize)
-	window[0]   = 1 # keep F0 for normalisation
-	unwindow[0] = 1
+    h           = np.fft.fft(f)
+    h_filtered  = np.zeros(D,dtype=complex)
+    window      = np.zeros(D)
+    unwindow    = np.zeros(D)
+    dw          = int(windowsize)
+    dw_float    = float(windowsize)
+    window[0]   = 1 # keep F0 for normalisation
+    unwindow[0] = 1
 
-	if windowsize > 0:
-		for i in range(dw):
-			window[w+i] = (i+1.0)/dw_float
-			window[D-1-(w+dw-i)] = (dw_float-i)/dw_float
+    if windowsize > 0:
+        for i in range(dw):
+            window[w+i] = (i+1.0)/dw_float
+            window[D-1-(w+dw-i)] = (dw_float-i)/dw_float
 
-		window[w+dw:D-(w+dw)] = 1
-	else:
-		window[w:D-w] = 1
+        window[w+dw:D-(w+dw)] = 1
+    else:
+        window[w:D-w] = 1
 
+    unwindow        = 1 - window
+    unwindow[0]     = 1
 
-	unwindow        = 1 - window
-	unwindow[0]     = 1
+    h_filtered      = h * window
+    un_h_filtered   = h*unwindow
 
-	h_filtered      = h * window
-	un_h_filtered   = h*unwindow
+    res     = np.real(np.fft.ifft(h_filtered))
+    unres   = np.real(np.fft.ifft(un_h_filtered)) 
+    res_out = (1.0+(res-np.median(res))/unres) * np.median(res) 
 
-	res     = np.real(np.fft.ifft(h_filtered))
-	unres   = np.real(np.fft.ifft(un_h_filtered)) 
-	res_out = (1.0+(res-np.median(res))/unres) * np.median(res) 
-
-	return res_out 
+    return res_out 
 
 
-def determine_attenuation(wave,data_flux,error_flux,model_flux,SPM,age,metal):
-	"""
-	Determines the dust attenuation to be applied to the models based on the data.
-	 * 1. high pass filters the data and the models : makes hpf_model and hpf_data
-	 * 2. normalises the hpf_models to the median hpf_data
-	 * 3. fits the hpf models to data : chi2 maps
-	 * 
-	:param wave: wavelength
-	:param data_flux: data flux
-	:param error_flux: error flux
-	:param model_flux: model flux
-	:param SPM: SPM StellarPopulationModel object
-	:param age: age
-	:param metal: metallicity
-	"""
-	# 1. high pass filters the data and the models
-	smoothing_length = SPM.dust_smoothing_length
-	hpf_data    = hpf(data_flux)
-	hpf_models  = np.zeros(np.shape(model_flux))
-	for m in range(len(model_flux)):
-		hpf_models[m] = hpf(model_flux[m])
+def determine_attenuation(wave, data_flux, error_flux, model_flux, SPM, age, metal):
+    """ Determines the dust attenuation to be applied to the models based on the data.
+     * 1. high pass filters the data and the models : makes hpf_model and hpf_data
+     * 2. normalises the hpf_models to the median hpf_data
+     * 3. fits the hpf models to data : chi2 maps
+     * 
+    :param wave: wavelength
+    :param data_flux: data flux
+    :param error_flux: error flux
+    :param model_flux: model flux
+    :param SPM: SPM StellarPopulationModel object
+    :param age: age
+    :param metal: metallicity
+    """
+    # 1. high pass filters the data and the models
+    smoothing_length = SPM.dust_smoothing_length
+    hpf_data    = hpf(data_flux)
+    hpf_models  = np.zeros(np.shape(model_flux))
+    for m in range(len(model_flux)):
+        hpf_models[m] = hpf(model_flux[m])
 
-	zero_dat = np.where( (np.isnan(hpf_data)) & (np.isinf(hpf_data)) )
-	hpf_data[zero_dat] = 0.0
-	for m in range(len(model_flux)):
-		hpf_models[m,zero_dat] = 0.0
-	hpf_error    = np.zeros(len(error_flux))
-	hpf_error[:] = np.median(error_flux)/np.median(data_flux) * np.median(hpf_data)
-	hpf_error[zero_dat] = np.max(hpf_error)*999999.9
-	# 2. normalises the hpf_models to the median hpf_data
-	hpf_models,mass_factors = normalise_spec(hpf_data,hpf_models)
-	# 3. fits the hpf models to data : chi2 maps
-	hpf_weights,hpf_chis,hpf_branch = fitter(wave,hpf_data,hpf_error, hpf_models , SPM )
-	# 4. use best fit to determine the attenuation curve : fine_attenuation
-	best_fit_index  = [np.argmin(hpf_chis)]
-	best_fit_hpf    = np.dot(hpf_weights[best_fit_index],hpf_models)[0]
-	best_fit        = np.dot(hpf_weights[best_fit_index],model_flux)[0]
-	fine_attenuation= (data_flux / best_fit) - (hpf_data/best_fit_hpf) + 1
-	bad_atten = np.isnan(fine_attenuation) | np.isinf(fine_attenuation)
-	fine_attenuation[bad_atten] = 1.0
-	hpf_error[bad_atten] = np.max(hpf_error)*9999999999.9 
-	fine_attenuation= fine_attenuation / np.median(fine_attenuation)
-	# 5. propagates the hpf to the age and metallicity estimates
-	av_age_hpf      = np.dot(hpf_weights,age)
-	av_metal_hpf    = np.dot(hpf_weights,metal)
-	# 6. smoothes the attenuation curve obtained
-	smooth_attenuation = curve_smoother(wave,fine_attenuation,smoothing_length)
+    zero_dat = np.where((np.isnan(hpf_data)) & (np.isinf(hpf_data)))
+    hpf_data[zero_dat] = 0.0
+    for m in range(len(model_flux)):
+        hpf_models[m, zero_dat] = 0.0
+    hpf_error = np.repeat(np.median(error_flux)/np.median(data_flux) * np.median(hpf_data), len(error_flux))
+    hpf_error[zero_dat] = np.max(hpf_error) * 999999.9
+    # 2. normalises the hpf_models to the median hpf_data
+    hpf_models, mass_factors = normalise_spec(hpf_data, hpf_models)
+    # 3. fits the hpf models to data : chi2 maps
+    hpf_weights, hpf_chis, hpf_branch = fitter(wave, hpf_data, hpf_error, hpf_models , SPM)
+    # 4. use best fit to determine the attenuation curve : fine_attenuation
+    best_fit_index  = [np.argmin(hpf_chis)]
+    best_fit_hpf    = np.dot(hpf_weights[best_fit_index],hpf_models)[0]
+    best_fit        = np.dot(hpf_weights[best_fit_index],model_flux)[0]
+    fine_attenuation= (data_flux / best_fit) - (hpf_data/best_fit_hpf) + 1
+    bad_atten = np.isnan(fine_attenuation) | np.isinf(fine_attenuation)
+    fine_attenuation[bad_atten] = 1.0
+    hpf_error[bad_atten] = np.max(hpf_error)*9999999999.9 
+    fine_attenuation= fine_attenuation / np.median(fine_attenuation)
+    # 5. propagates the hpf to the age and metallicity estimates
+    av_age_hpf      = np.dot(hpf_weights,age)
+    av_metal_hpf    = np.dot(hpf_weights,metal)
+    # 6. smoothes the attenuation curve obtained
+    smooth_attenuation = curve_smoother(wave,fine_attenuation,smoothing_length)
 
-	# Fit a dust attenuation law to the best fit attenuation.
-	if SPM.dust_law == 'calzetti':
-		"""
-		Assume E(B-V) distributed 0 to max_ebv.
-		Uses the attenuation curves of Calzetti (2000) for starburst galaxies.
-		"""
-		num_laws = SPM.num_dust_vals
-		ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
-		chi_dust    = np.zeros(num_laws)
-		for ei,e in enumerate(ebv_arr):
-			laws = np.array(dust_calzetti_py(e,wave))
-			laws = laws/np.median(laws)
-			chi_dust_arr = (smooth_attenuation-laws)**2
-			chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
-			chi_clip_sq         = np.square(chi_clipped_arr[0])
-			chi_dust[ei]        = np.sum(chi_clip_sq)
+    # Fit a dust attenuation law to the best fit attenuation.
+    if SPM.dust_law == 'calzetti':
+            """
+            Assume E(B-V) distributed 0 to max_ebv.
+            Uses the attenuation curves of Calzetti (2000) for starburst galaxies.
+            """
+            num_laws = SPM.num_dust_vals
+            ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
+            chi_dust    = np.zeros(num_laws)
+            for ei,e in enumerate(ebv_arr):
+                    laws = np.array(dust_calzetti_py(e,wave))
+                    laws = laws/np.median(laws)
+                    chi_dust_arr = (smooth_attenuation-laws)**2
+                    chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
+                    chi_clip_sq         = np.square(chi_clipped_arr[0])
+                    chi_dust[ei]        = np.sum(chi_clip_sq)
 
-		dust_fit 			= ebv_arr[np.argmin(chi_dust)]
-		#laws                = np.array(dust_calzetti_py(dust_fit,wave))
-		#laws 				= laws/np.median(laws)
-		#chi_dust_arr        = (smooth_attenuation-laws)**2
-		#chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
-		#chi_clip_sq         = np.square(chi_clipped_arr[0])
-		#clipped_arr         = np.where((chi_dust_arr > chi_clipped_arr[1]) & (chi_dust_arr < chi_clipped_arr[2]))[0]
-		#	
-		#for m in range(min([100,np.size(hpf_chis)])):
-		#	sort_ind = np.argsort(hpf_chis)
-		#	attenuation= data_flux/(np.dot(hpf_weights[sort_ind[m]],model_flux))
-		#	attenuation= attenuation/np.median(attenuation)
+            dust_fit 			= ebv_arr[np.argmin(chi_dust)]
+            #laws                = np.array(dust_calzetti_py(dust_fit,wave))
+            #laws 				= laws/np.median(laws)
+            #chi_dust_arr        = (smooth_attenuation-laws)**2
+            #chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
+            #chi_clip_sq         = np.square(chi_clipped_arr[0])
+            #clipped_arr         = np.where((chi_dust_arr > chi_clipped_arr[1]) & (chi_dust_arr < chi_clipped_arr[2]))[0]
+            #	
+            #for m in range(min([100,np.size(hpf_chis)])):
+            #	sort_ind = np.argsort(hpf_chis)
+            #	attenuation= data_flux/(np.dot(hpf_weights[sort_ind[m]],model_flux))
+            #	attenuation= attenuation/np.median(attenuation)
 
-	if SPM.dust_law == 'allen':
-		"""
-		Assume E(B-V) distributed 0 to max_ebv.
-		Uses the attenuation curves of Allen (1976) of the Milky Way.
-		"""
-		num_laws = SPM.num_dust_vals
-		ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
-		chi_dust    = np.zeros(num_laws)
-		for ei,e in enumerate(ebv_arr):
-			laws = np.array(dust_allen_py(e,wave))
-			laws = laws/np.median(laws)
-			chi_dust_arr = (smooth_attenuation-laws)**2
-			chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
-			chi_clip_sq         = np.square(chi_clipped_arr[0])
-			chi_dust[ei]        = np.sum(chi_clip_sq)
+    if SPM.dust_law == 'allen':
+            """
+            Assume E(B-V) distributed 0 to max_ebv.
+            Uses the attenuation curves of Allen (1976) of the Milky Way.
+            """
+            num_laws = SPM.num_dust_vals
+            ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
+            chi_dust    = np.zeros(num_laws)
+            for ei,e in enumerate(ebv_arr):
+                    laws = np.array(dust_allen_py(e,wave))
+                    laws = laws/np.median(laws)
+                    chi_dust_arr = (smooth_attenuation-laws)**2
+                    chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
+                    chi_clip_sq         = np.square(chi_clipped_arr[0])
+                    chi_dust[ei]        = np.sum(chi_clip_sq)
 
-		dust_fit = ebv_arr[np.argmin(chi_dust)]
+            dust_fit = ebv_arr[np.argmin(chi_dust)]
 
-	if SPM.dust_law == 'prevot':
-		"""
-		Assume E(B-V) distributed 0 to max_ebv.
-		Uses the attenuation curves of Prevot (1984) and Bouchert et al. (1985) for the Small Magellanic Cloud (SMC).
-		"""
-		num_laws = SPM.num_dust_vals
-		ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
-		chi_dust    = np.zeros(num_laws)
-		for ei,e in enumerate(ebv_arr):
-			laws = np.array(dust_prevot_py(e,wave))
-			laws = laws/np.median(laws)
+    if SPM.dust_law == 'prevot':
+            """
+            Assume E(B-V) distributed 0 to max_ebv.
+            Uses the attenuation curves of Prevot (1984) and Bouchert et al. (1985) for the Small Magellanic Cloud (SMC).
+            """
+            num_laws = SPM.num_dust_vals
+            ebv_arr     = np.arange(num_laws)/(SPM.max_ebv*num_laws*1.0)
+            chi_dust    = np.zeros(num_laws)
+            for ei,e in enumerate(ebv_arr):
+                    laws = np.array(dust_prevot_py(e,wave))
+                    laws = laws/np.median(laws)
 
-			chi_dust_arr = (smooth_attenuation-laws)**2
-			chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
-			chi_clip_sq         = np.square(chi_clipped_arr[0])
-			chi_dust[ei]        = np.sum(chi_clip_sq)
+                    chi_dust_arr = (smooth_attenuation-laws)**2
+                    chi_clipped_arr     = sigmaclip(chi_dust_arr, low=3.0, high=3.0)
+                    chi_clip_sq         = np.square(chi_clipped_arr[0])
+                    chi_dust[ei]        = np.sum(chi_clip_sq)
 
-		dust_fit = ebv_arr[np.argmin(chi_dust)]
+            dust_fit = ebv_arr[np.argmin(chi_dust)]
 
 
-	# print "Best E(B-V) = "+str(dust_fit)
-	return dust_fit,smooth_attenuation
+    # print "Best E(B-V) = "+str(dust_fit)
+    return dust_fit,smooth_attenuation
 

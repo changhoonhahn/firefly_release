@@ -75,16 +75,13 @@ def airtovac(wave_air):
 
 #-----------------------------------------------------------------------
 def bisect_array(array):
-	"""
-	It takes an array as input and returns the bisected array : 
-	bisected array[i] = (array[i] + array[i+1] )/2. Its lenght is one less than the array.
+    """
+    It takes an array as input and returns the bisected array : 
+    bisected array[i] = (array[i] + array[i+1] )/2. Its lenght is one less than the array.
 
-	:param array: input array
-	"""
-	bisected_array = np.zeros(len(array) - 1)
-	for ai in range(len(bisected_array)):
-		bisected_array[ai] = (array[ai] + array[ai + 1])/2.0
-	return bisected_array
+    :param array: input array
+    """
+    return 0.5*(array[:-1]+array[1:]) 
 
 
 #-----------------------------------------------------------------------
@@ -271,139 +268,128 @@ def calculate_averages_pdf(probs,light_weights,mass_weights,unnorm_mass,age,meta
 
 
 #-----------------------------------------------------------------------
-def normalise_spec(data_flux,model_flux):
-	"""
-	Normalises all models to the median value of the spectrum.
-	Saves the factors for later use.
+def normalise_spec(data_flux, model_flux):
+    """
+    Normalises all models to the median value of the spectrum.
+    Saves the factors for later use.
 
-	Outputs : normed models and translation factors.
+    Outputs : normed models and translation factors.
 
-	:param data_flux: observed flux in the data
-	:param model_flux: flux from the models
-	"""
-	data_norm 				= np.median(data_flux)
-	num_mods 				= len(model_flux)
-	model_norm,mass_factor 	= np.zeros(num_mods),np.zeros(num_mods)
-	normed_model_flux 		= np.zeros((num_mods,len(model_flux[0])))
-
-	for m in range(len(model_flux)):
-		model_norm[m] 			= np.median(model_flux[m])
-		mass_factor[m] 			= data_norm/model_norm[m]
-		normed_model_flux[m] 	= model_flux[m] / model_norm[m] * data_norm
-
-	return normed_model_flux,mass_factor
+    :param data_flux: observed flux in the data
+    :param model_flux: flux from the models
+    """
+    data_norm   = np.median(data_flux)
+    num_mods    = len(model_flux)
+    mass_factor = np.zeros(num_mods)
+    normed_model_flux = np.zeros((num_mods, len(model_flux[0])))
+    
+    model_norm  = np.median(model_flux, axis=1) 
+    mass_factor = data_norm / model_norm 
+    normed_model_flux = (model_flux.T / model_norm).T * data_norm 
+    return normed_model_flux, mass_factor
 
 #-----------------------------------------------------------------------
 def match_data_models( data_wave_int, data_flux_int, data_flags, error_flux_int, model_wave_int, model_flux_int, min_wave_in, max_wave_in, saveDowngradedModel = True, downgradedModelFile = "DGmodel.txt"):
-	"""
-	 * 0.Take data and models as inputs 
-	 * 1. interpolate data and model to the lowest sampled array.
-		* 1.1. Defines the wavelength range on the model and on the data
-		* 1.2. Downgrades the array, model or data, that has most sampling 
-	 	* 1.3. integrate between them to output a matched resolution array for data and model
-	 * 2. Returns the matched wavelength array, the corresponding data, error and model arrays : matched_wave,matched_data,matched_error,matched_model
+    """
+    * 0.Take data and models as inputs 
+    * 1. interpolate data and model to the lowest sampled array.
+            * 1.1. Defines the wavelength range on the model and on the data
+            * 1.2. Downgrades the array, model or data, that has most sampling 
+            * 1.3. integrate between them to output a matched resolution array for data and model
+    * 2. Returns the matched wavelength array, the corresponding data, error and model arrays : matched_wave,matched_data,matched_error,matched_model
 
-	:param data_wave_int: data wavelength array in the restframe
-	:param data_flux_int: data flux array
-	:param data_flags: data quality flag array : 1 for good data
-	:param error_flux_int: data flux error array
-	:param model_wave_int: model wavelength array (in the rest frame)
-	:param model_flux_int: model flux array
-	:param min_wave_in: minimum wavelength to be considered
-	:param max_wave_in: maximum wavelength to be considered
-	:param saveDowngradedModel: if True it will save the downgraded models
-	:param downgradedModelFile: location where downgreaded models will be saved
-	"""  
-	# 1. interpolate onto the bisection of lowest sampled array.
-	num_models = len(model_flux_int)
-	# 1.1. Defines the wavelength range on the model and on the data
-	min_wave = np.max([np.min(data_wave_int[np.where(data_flags==1)]), np.min(model_wave_int),min_wave_in])
-	max_wave = np.min([np.max(data_wave_int[np.where(data_flags==1)]), np.max(model_wave_int),max_wave_in])
-	#print np.min(data_wave_int[np.where(data_flags==1)]), np.min(model_wave_int), min_wave_in
-	#print np.max(data_wave_int[np.where(data_flags==1)]), np.max(model_wave_int), max_wave_in
-	loc_model 	= np.array(( model_wave_int <= max_wave) & (model_wave_int >= min_wave))
-	if np.sum(loc_model)==0:
-		raise ValueError("The wavelength range input is below or above model wavelength coverage!")
-	model_wave 	= model_wave_int[loc_model]
-	num_mod  	= np.sum(loc_model)
-	model_flux 	= np.zeros((num_models,num_mod))
+    :param data_wave_int: data wavelength array in the restframe
+    :param data_flux_int: data flux array
+    :param data_flags: data quality flag array : 1 for good data
+    :param error_flux_int: data flux error array
+    :param model_wave_int: model wavelength array (in the rest frame)
+    :param model_flux_int: model flux array
+    :param min_wave_in: minimum wavelength to be considered
+    :param max_wave_in: maximum wavelength to be considered
+    :param saveDowngradedModel: if True it will save the downgraded models
+    :param downgradedModelFile: location where downgreaded models will be saved
+    """  
+    # 1. interpolate onto the bisection of lowest sampled array.
+    num_models = len(model_flux_int)
+    # 1.1. Defines the wavelength range on the model and on the data
+    min_wave = np.max([np.min(data_wave_int[np.where(data_flags==1)]), np.min(model_wave_int),min_wave_in])
+    max_wave = np.min([np.max(data_wave_int[np.where(data_flags==1)]), np.max(model_wave_int),max_wave_in])
 
-	for m in range(num_models):
-		model_flux[m] = model_flux_int[m][loc_model]
-	
-	loc_data 	= np.array(( data_wave_int <= max_wave) & (data_wave_int >= min_wave)) 
-	if np.sum(loc_data)==0:
-		raise ValueError("The wavelength range input is below or above data wavelength coverage!")
-	num_dat  	= np.sum(loc_data)
-	data_wave 	= data_wave_int[loc_data]
-	data_flux 	= data_flux_int[loc_data]
-	error_flux 	= error_flux_int[loc_data]
-	# 1.2. Downgrades the array, model or data, that has most sampling 
-	if num_mod >= num_dat:
-		#print "More model points than data points! Downgrading models to data sampling ..."
-		bisect_data = bisect_array(data_wave) + np.min(data_wave)*0.0000000001
-		matched_model = np.zeros((num_models,len(bisect_data) - 1))
-		for m in range(num_models):
-			model_flux_bounds 	= np.interp(bisect_data, model_wave, model_flux[m])
-			combined_wave_int 	= np.concatenate((model_wave,bisect_data))
-			combined_flux_int 	= np.concatenate((model_flux[m],model_flux_bounds))
-			sort_indices 		= np.argsort(combined_wave_int)
+    loc_model 	= ((model_wave_int <= max_wave) & (model_wave_int >= min_wave))
+    if np.sum(loc_model) == 0: raise ValueError("The wavelength range input is below or above model wavelength coverage!")
+    model_wave 	= model_wave_int[loc_model]
+    num_mod  	= np.sum(loc_model)
+    model_flux  = np.array(model_flux_int)[:,loc_model]
+    
+    loc_data 	= ((data_wave_int <= max_wave) & (data_wave_int >= min_wave)) 
+    if np.sum(loc_data)==0: raise ValueError("The wavelength range input is below or above data wavelength coverage!")
+    num_dat  	= np.sum(loc_data)
+    data_wave 	= data_wave_int[loc_data]
+    data_flux 	= data_flux_int[loc_data]
+    error_flux 	= error_flux_int[loc_data]
+    # 1.2. Downgrades the array, model or data, that has most sampling 
+    if num_mod >= num_dat:
+        # if the model has more wavelength bins than the data
+        bisect_data = bisect_array(data_wave) + np.min(data_wave)*0.0000000001
+        matched_model = np.zeros((num_models, len(bisect_data) - 1))
+        for m in range(num_models):
+            model_flux_bounds 	= np.interp(bisect_data, model_wave, model_flux[m])
+            combined_wave_int 	= np.concatenate((model_wave, bisect_data))
+            combined_flux_int 	= np.concatenate((model_flux[m], model_flux_bounds))
+            sort_indices        = np.argsort(combined_wave_int)
 
-			combined_wave 		= np.sort(combined_wave_int)
-			boundary_indices 	= np.searchsorted(combined_wave,bisect_data)
-			combined_flux 		= combined_flux_int[sort_indices]
+            combined_wave 	= np.sort(combined_wave_int)
+            boundary_indices 	= np.searchsorted(combined_wave,bisect_data)
+            combined_flux       = combined_flux_int[sort_indices]
 
-			len_combo = len(combined_flux)
-			# 1.3. produces a matched resolution array
-			for l in range(len(boundary_indices) - 1):
-				if boundary_indices[l + 1] >= len_combo:
-					matched_model[m][l] = matched_model[m][l - 1]
-				else:
-					matched_model[m][l] = np.trapz(combined_flux[boundary_indices[l] : boundary_indices[l + 1] +  1], x=combined_wave[boundary_indices[l] :boundary_indices[l + 1] + 1]) / (combined_wave[boundary_indices[l + 1]] -  combined_wave[boundary_indices[l] ])
+            len_combo = len(combined_flux)
+            # 1.3. produces a matched resolution array
+            for l in range(len(boundary_indices) - 1):
+                if boundary_indices[l + 1] >= len_combo:
+                    matched_model[m][l] = matched_model[m][l - 1]
+                else:
+                    matched_model[m][l] = np.trapz(combined_flux[boundary_indices[l] : boundary_indices[l + 1] +  1], x=combined_wave[boundary_indices[l] :boundary_indices[l + 1] + 1]) / (combined_wave[boundary_indices[l + 1]] -  combined_wave[boundary_indices[l] ])
+        matched_wave = data_wave[1:-1]
+        matched_data = data_flux[1:-1]
+        matched_error = error_flux[1:-1]
+        # OPTION : saves the downgraded models.
+        if saveDowngradedModel:
+            #print "saving downgraded models to ",downgradedModelFile
+            f.open(downgradedModelFile,'w')
+            cPickle.dump([matched_wave, matched_data, matched_error],f)
+            f.close()
+    else:
+        #print "More data points than model points! Downgrading data to model sampling ..."
+        bisect_model = bisect_array(model_wave) + np.min(model_wave)*0.0000000001
+        boundaries 	= np.searchsorted(data_wave,bisect_model)
 
-		matched_wave = data_wave[1:-1]
-		matched_data = data_flux[1:-1]
-		matched_error = error_flux[1:-1]
-		# OPTION : saves the downgraded models.
-		if saveDowngradedModel:
-			#print "saving downgraded models to ",downgradedModelFile
-			f.open(downgradedModelFile,'w')
-			cPickle.dump([matched_wave, matched_data, matched_error],f)
-			f.close()
+        data_flux_bounds 	= np.interp(bisect_model, data_wave, data_flux)
+        error_flux_bounds 	= np.interp(bisect_model, data_wave, error_flux)
+        combined_wave_int 	= np.concatenate((data_wave,bisect_model))
+        combined_flux_int 	= np.concatenate((data_flux,data_flux_bounds))
+        combined_error_int 	= np.concatenate((data_flux,error_flux_bounds))
+        sort_indices            = np.argsort(combined_wave_int)
+    
+        combined_wave           = np.sort(combined_wave_int)
+        boundary_indices 	= np.searchsorted(combined_wave,bisect_model)
+        combined_flux 		= combined_flux_int[sort_indices]
+        combined_error 		= combined_error_int[sort_indices]
 
-	else:
-		#print "More data points than model points! Downgrading data to model sampling ..."
-		bisect_model = bisect_array(model_wave) + np.min(model_wave)*0.0000000001
-		boundaries 	= np.searchsorted(data_wave,bisect_model)
+        # 1.3. produces a matched resolution array
+        matched_data, matched_error= np.zeros(len(boundary_indices) - 1), np.zeros(len(boundary_indices) - 1)
 
-		data_flux_bounds 	= np.interp(bisect_model, data_wave, data_flux)
-		error_flux_bounds 	= np.interp(bisect_model, data_wave, error_flux)
-		combined_wave_int 	= np.concatenate((data_wave,bisect_model))
-		combined_flux_int 	= np.concatenate((data_flux,data_flux_bounds))
-		combined_error_int 	= np.concatenate((data_flux,error_flux_bounds))
-		sort_indices 		= np.argsort(combined_wave_int)
-	
-		combined_wave 		= np.sort(combined_wave_int)
-		boundary_indices 	= np.searchsorted(combined_wave,bisect_model)
-		combined_flux 		= combined_flux_int[sort_indices]
-		combined_error 		= combined_error_int[sort_indices]
+        len_combo = len(combined_flux)
+        for l in range(len(boundary_indices) - 1):
+            if boundary_indices[l + 1] >= len_combo:
+                matched_data[l] 	= matched_data[l - 1]
+                matched_error[l] 	= matched_error[l - 1]
+            else:
+                matched_data[l] 	= np.trapz(combined_flux[boundary_indices[l]:boundary_indices[l + 1] + 1], x=combined_wave[boundary_indices[l]: boundary_indices[l + 1] + 1])/  (combined_wave[boundary_indices[l + 1]] - combined_wave[boundary_indices[l]])
+                matched_error[l] 	= np.trapz(combined_error[boundary_indices[l]:boundary_indices[l + 1] + 1], x=combined_wave[boundary_indices[l]:boundary_indices[l + 1] + 1])/ (combined_wave[boundary_indices[l + 1]] - combined_wave[boundary_indices[l]])
 
-		# 1.3. produces a matched resolution array
-		matched_data,matched_error= np.zeros(len(boundary_indices) - 1),np.zeros(len(boundary_indices) - 1)
+        matched_wave 		= model_wave[1:-1]
+        matched_model 		= np.zeros((num_models,len(matched_wave)))
+        for m in range(num_models):
+            matched_model[m][:] = model_flux[m][1:-1]
 
-		len_combo = len(combined_flux)
-		for l in range(len(boundary_indices) - 1):
-			if boundary_indices[l + 1] >= len_combo:
-				matched_data[l] 	= matched_data[l - 1]
-				matched_error[l] 	= matched_error[l - 1]
-			else:
-				matched_data[l] 	= np.trapz(combined_flux[boundary_indices[l]:boundary_indices[l + 1] + 1], x=combined_wave[boundary_indices[l]: boundary_indices[l + 1] + 1])/  (combined_wave[boundary_indices[l + 1]] - combined_wave[boundary_indices[l]])
-				matched_error[l] 	= np.trapz(combined_error[boundary_indices[l]:boundary_indices[l + 1] + 1], x=combined_wave[boundary_indices[l]:boundary_indices[l + 1] + 1])/ (combined_wave[boundary_indices[l + 1]] - combined_wave[boundary_indices[l]])
-
-		matched_wave 		= model_wave[1:-1]
-		matched_model 		= np.zeros((num_models,len(matched_wave)))
-		for m in range(num_models):
-			matched_model[m][:] = model_flux[m][1:-1]
-
-	return matched_wave,matched_data,matched_error,matched_model
-
+    return matched_wave,matched_data,matched_error,matched_model

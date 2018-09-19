@@ -30,17 +30,17 @@ import astropy.units as uu
 cosmo = cc.Planck13
 
 def remove_bad_data(influx, inerror, inbad_flags):
-	new_flux = influx
-	new_error = inerror
-	new_bad_flags = inbad_flags
+    new_flux = influx
+    new_error = inerror
+    new_bad_flags = inbad_flags
 	
-	bad_data = np.isnan(influx) | np.isinf(influx) | (influx <= 0.0) \
-	    | np.isnan(inerror) | np.isinf(inerror)
-	if (len(bad_data) > 0): # removes the bad data from the spectrum
-		new_flux[bad_data] 	= 0.0
-		new_error[bad_data] 	= np.max(influx) * 99999999999.9
-		new_bad_flags[bad_data] = 0
-	return new_flux, new_error, new_bad_flags
+    bad_data = np.isnan(influx) | np.isinf(influx) | np.isnan(inerror) | np.isinf(inerror)
+    if np.sum(bad_data) > 0: # removes the bad data from the spectrum
+        new_flux[bad_data] 	= 0.0
+        new_error[bad_data] = np.max(influx) * 99999999999.9
+        new_bad_flags[bad_data] = 0
+    return new_flux, new_error, new_bad_flags
+
 
 class GalaxySpectrumFIREFLY:
 	"""
@@ -800,5 +800,3 @@ class GalaxySpectrumFIREFLY:
 			self.ebv_mw = get_dust_radec(ra,dec,'ebv')
 		else:
 			self.ebv_mw = 0.0
-
-
