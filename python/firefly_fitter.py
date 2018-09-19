@@ -33,7 +33,8 @@ class newFitter(object):
 
         self.num_wave = len(wavelength)
         self.num_models = len(models)
-
+    
+        self.index_count = 0 
         self.iterate_count = 0
     
         self.bic_n = np.log(self.num_wave)
@@ -57,7 +58,8 @@ class newFitter(object):
             chi_clip_sq     = np.square(chi_clipped_arr[0])
             fit_first['clipped_arr'] = (chi_arr > chi_clipped_arr[1]) & (chi_arr < chi_clipped_arr[2])
             fit_first['chi_squared'] = np.sum(chi_clip_sq)
-            fit_first['index'] = 1
+            fit_first['index'] = self.index_count
+            self.index_count += 1
 
             fit_list.append(fit_first) 
             int_chi.append(fit_first['chi_squared'])
@@ -72,8 +74,10 @@ class newFitter(object):
         best_fits = np.argsort(chis)	
 
         bf = len(best_fits)
-        if bf > 10: bf = 10
+        if bf > 10: 
+            bf = 10
         extra_fit_list = self._mix(np.asarray(final_fit_list)[best_fits[:bf]].tolist(), final_fit_list, np.min(chis))
+        extra_chis = [fdict['chi_squared'] for fdict in extra_fit_list]
         self.total_fit_list = final_fit_list + extra_fit_list
 
     def output(self):  
@@ -152,29 +156,33 @@ class newFitter(object):
         Never go more than 100 best solutions!  
         """
         # Importance check:
-        important_chi 	= min_chi + 10.0
-        extra_fit_list 	= []#copy.copy(fit_list)
+        important_chi = min_chi + 10.0
+        extra_fit_list = []#copy.copy(fit_list)
 
         # print "Mixing best solutions to improve estimate."
         #print str(len(fit_list))+' fits to cross-check!'
-        for f1 in range(len(fit_list)):
-            for f2 in range(len(full_fit_list)):
+        for f1 in fit_list:
+            for f2 in full_fit_list:
                 for q in [0.0000001,0.000001,0.00001,0.0001,0.001,0.01,0.1,1.0]: 
                     fitdict = {} 
-                    fitdict['branch_num']  = fit_list[f1]['branch_num'] + full_fit_list[f2]['branch_num'] 
-                    fitdict['weights'] = (fit_list[f1]['weights'] + q*full_fit_list[f2]['weights']) / (1.0 + q)
+                    fitdict['weights'] = (f1['weights'] + q * f2['weights']) / (1. + q)
+                    fitdict['branch_num'] = f1['branch_num'] + f2['branch_num'] 
+                    fitdict['index'] = self.index_count
                     
                     # Auto-calculate chi-squared
                     index_weights = np.nonzero(fitdict['weights']) # saves time!
                     chi_arr = np.dot(fitdict['weights'][index_weights], self.chi_models[index_weights])
-                    chi_clip_sq = np.square(chi_arr[self.clipped_arr])
+                    if fitdict['branch_num'] == 0: 
+                        chi_clipped_arr = sigmaclip(chi_arr, low=3.0, high=3.0)
+                        chi_clip_sq = np.square(chi_clipped_arr[0])
+                        self.clipped_arr = (chi_arr > chi_clipped_arr[1]) & (chi_arr < chi_clipped_arr[2])
+                    else: 
+                        chi_clip_sq = np.square(chi_arr[self.clipped_arr])
                     fitdict['chi_squared'] = np.sum(chi_clip_sq)
+                    self.index_count += 1 
 
                     extra_fit_list.append(fitdict)
         return extra_fit_list
-
-
-
 
 
 def fitter(wavelength_in, data_in, error_in, models_in, SPM):
@@ -429,10 +437,13 @@ def fitter(wavelength_in, data_in, error_in, models_in, SPM):
     if bf>10:
             bf=10
     extra_fit_list 		= mix(np.asarray(final_fit_list)[best_fits[:bf]].tolist(),final_fit_list,np.min(chis))
+    extra_chis = [fdict.chi_squared for fdict in extra_fit_list]
+    print('extra', extra_chis[:10], extra_chis[-10:])
     total_fit_list 		= final_fit_list+extra_fit_list
-    #junk,chis,more_junk = retrieve_properties(total_fit_list)
-
-    return retrieve_properties(total_fit_list)
+    junk,chis,more_junk = retrieve_properties(total_fit_list)
+    print('chis', chis[:10], chis[-10:])
+    return junk, chis, more_junk 
+    #return retrieve_properties(total_fit_list)
 
 
 
